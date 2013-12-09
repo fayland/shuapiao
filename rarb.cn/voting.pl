@@ -77,7 +77,7 @@ foreach my $proxy (@proxies) {
 		}
 		$tree = $tree->delete;
 
-		die unless $TO_SHUA_UID ne '7B8855UFRWXVNVXVRUVVBUVFNcUVRVVF1RUFVTUVBSU1YB'; # make sure it works
+		die unless $TO_SHUA_UID ne 'FIXME'; # make sure it works
 
 		## get lowest 23 ppl
 		my @uids = sort { $data{$a}{num} <=> $data{$b}{num} } keys %data;
