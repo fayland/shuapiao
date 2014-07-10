@@ -14,12 +14,13 @@ my $ua = LWP::UserAgent->new(
 );
 
 my @vote_ids;
-open(my $fh, '<', "$Bin/vote_ids.txt");
-while (my $l = <$fh>) {
-    $l =~ s/\D+//g;
-    push @vote_ids, $l if $l;
+if (open(my $fh, '<', "$Bin/vote_ids.txt")) {
+    while (my $l = <$fh>) {
+        $l =~ s/\D+//g;
+        push @vote_ids, $l if $l;
+    }
+    close($fh);
 }
-close($fh);
 
 my %user;
 foreach my $page (1 .. 4) {
@@ -55,7 +56,7 @@ foreach my $u (sort { $user{$b} <=> $user{$a} } keys %user) {
 
 print "\n\n";
 foreach my $vote_id (@vote_ids) {
-    print "$vote_id POS: $pos{$vote_id}\n";
+    print "$vote_id POS: $pos{$vote_id} on $user{$vote_id}\n";
 }
 
 1;
