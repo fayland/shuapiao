@@ -39,8 +39,7 @@ foreach my $page (1 .. 4) {
     my $data = decode_json($c);
     # print Dumper(\$data);
     foreach my $d (@{$data->{data}}) {
-        print Dumper(\$d);
-
+        # print Dumper(\$d);
         $user{ $d->{id} } = $d->{vote_count};
     }
 
