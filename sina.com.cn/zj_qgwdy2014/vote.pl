@@ -54,7 +54,7 @@ foreach my $proxy (@proxies) {
             print "VOTE FOR $vote_id with $proxy: FAIL (" . $res->decoded_content . ")\n";
         }
 
-        sleep 30 + int(rand(30)); # more human
+        sleep 10 + int(rand(60)); # more human
     }
 
     $pm->finish();
