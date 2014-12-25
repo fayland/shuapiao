@@ -9,10 +9,11 @@ use Encode;
 use List::Util 'shuffle';
 use HTTP::Request;
 use URI::Escape;
+use Parallel::ForkManager;
 
 $| = 1;
 
-my @names = qw/林启功 陈文 张可 李来来 林易 陈国庆 鲁文文 夏雪 陈琴 李康 钱勇 宋雪 余瑞金 葛天 黄章 宋楚瑜 张天 叶天华 赵冠宇 赵可可 林锦楠 夏天 张宇 陈学冬 方冰冰 范伟 方文山 周国庆 王铮 戎凯旋 步铮 杨松 秦霜 慕容情 叶文 林铁 章丘 夏夏 文章 洛离/;
+my @names = qw/林启功 陈文 张可 李来来 林易 陈国庆 鲁文文 夏雪 陈琴 李康 钱勇 宋雪 余瑞金 葛天 黄章 宋楚瑜 张天 叶天华 赵冠宇 赵可可 林锦楠 夏天 张宇 陈学冬 方冰冰 范伟 方文山 周国庆 王铮 戎凯旋 步铮 杨松 秦霜 慕容情 叶文 林铁 章丘 夏夏 文章 洛离 刘伟 赵亮/;
 
 my $TO_SHUA_UID = $ENV{SHUAPIAO_OID} or die "ENV SHUAPIAO_OID is required.";
 
@@ -40,56 +41,66 @@ close($fh);
 @proxies = map { s/^\s+|\s+$//g; $_ } @proxies;
 @proxies = shuffle @proxies;
 
+my $pm = Parallel::ForkManager->new(20);
 foreach my $proxy (@proxies) {
+	$pm->start() and next; # do the fork
+
 	my $ua = build_ua($proxy);
 
-	my $url = 'http://115.236.32.180/tpxt/index.php/vote-vote?id=3';
-	print "# [$proxy] get $url\n";
-	my $resp = $ua->get($url);
-	unless ($resp->is_success) {
-		print $resp->status_line . "\n";
-		last;
+	foreach (1) {
+		my $url = 'http://115.236.32.180/tpxt/index.php/vote-vote?id=3';
+		print "# [$proxy] get $url\n";
+		my $resp = $ua->get($url);
+		unless ($resp->is_success) {
+			print $resp->status_line . "\n";
+			next;
+		}
+
+		my $tree = HTML::TreeBuilder->new_from_content( decode_utf8($ua->content) );
+		my @oids = $tree->look_down(_tag => 'input', name => 'oid[]');
+		@oids = map { $_->attr('value') } @oids;
+		$tree = $tree->delete;
+
+		unless (@oids) {
+			print $resp->decoded_content . "\n";
+			next;
+		}
+
+		srand();
+		@oids = shuffle @oids;
+		@oids = splice(@oids, 0, 17 + int(rand(5)));
+		unless (grep { $_ eq $TO_SHUA_UID } @oids) {
+			pop @oids;
+			push @oids, $TO_SHUA_UID;
+		}
+
+		my $name = encode('gbk', decode_utf8($names[int(rand(scalar(@names)))]));
+		my $number = sprintf('%08d', int(rand(99999)));
+		my $i = int(rand(10));
+		my $phone = '13' . $i . $number;
+
+		my $req = HTTP::Request->new(POST => 'http://115.236.32.180/tpxt/index.php/vote-vote');
+		my $content = 'vid=3&multi=34&min=17&';
+		$content .= 'oid%5B%5D=' . $_ . '&' foreach (@oids);
+		$content .= "username=" . uri_escape($name) . "&phone=$phone&id=3";
+		$req->content($content);
+		$req->header('Content-Length' => length $content);
+		$req->header('Accept' => 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8');
+		$req->header('Content-Type' => 'application/x-www-form-urlencoded');
+
+		$resp = $ua->request($req);
+
+		if ($resp->decoded_content =~ m{<a id="forward" href="http://115.236.32.180/tou}) {
+			print "[OK]\n";
+		} else {
+			# print Dumper(\$resp); use Data::Dumper;
+			print $resp->decoded_content;
+		}
 	}
 
-	my $tree = HTML::TreeBuilder->new_from_content( decode_utf8($ua->content) );
-	my @oids = $tree->look_down(_tag => 'input', name => 'oid[]');
-	@oids = map { $_->attr('value') } @oids;
-	$tree = $tree->delete;
-
-	die $resp->decoded_content unless @oids;
-
-	srand();
-	@oids = shuffle @oids;
-	@oids = splice(@oids, 0, 17 + int(rand(5)));
-	unless (grep { $_ eq $TO_SHUA_UID } @oids) {
-		pop @oids;
-		push @oids, $TO_SHUA_UID;
-	}
-
-	my $name = encode('gbk', decode_utf8($names[int(rand(scalar(@names)))]));
-	my $number = sprintf('%08d', int(rand(99999)));
-	my $i = int(rand(10));
-	my $phone = '13' . $i . $number;
-
-	my $req = HTTP::Request->new(POST => 'http://115.236.32.180/tpxt/index.php/vote-vote');
-	my $content = 'vid=3&multi=34&min=17&';
-	$content .= 'oid%5B%5D=' . $_ . '&' foreach (@oids);
-	$content .= "username=" . uri_escape($name) . "&phone=$phone&id=3";
-	$req->content($content);
-	$req->header('Content-Length' => length $content);
-	$req->header('Accept' => 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8');
-	$req->header('Content-Type' => 'application/x-www-form-urlencoded');
-
-	$resp = $ua->request($req);
-
-	if ($resp->decoded_content =~ m{<a id="forward" href="http://115.236.32.180/tou}) {
-		print "[OK]\n";
-	} else {
-		# print Dumper(\$resp); use Data::Dumper;
-		print $resp->decoded_content;
-	}
-
-	sleep 10;
+	$pm->finish();
 }
+
+$pm->wait_all_children;
 
 1;
